@@ -1,6 +1,6 @@
 # Methods-of-synthesis-of-virtual-realiry
 
-PA1 GIF and Photo
+PA2 GIF and Photo
 
-![plot](./PA1.gif)
-![plot](./PA1photo.jpg)
+![plot](./PA2.gif)
+![plot](./PA2photo.jpg)

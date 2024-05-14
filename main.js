@@ -8,7 +8,7 @@ let light;
 let point = [0.5, 0.5]
 let stereoCamera;
 let lilgui;
-
+let surfaceForVideo, textureForVideo, textureForSurface, video;
 // linearly maps value from the range (a..b) to (c..d)
 function mapRange(value, a, b, c, d) {
     // first map value from (a..b) to (0..1)
@@ -35,8 +35,6 @@ window.onkeydown = (e) => {
 function deg2rad(angle) {
     return angle * Math.PI / 180;
 }
-
-
 
 
 // Constructor
@@ -138,6 +136,22 @@ function draw() {
     gl.uniform3fv(shProgram.iLightPosition, [2 * Math.cos(Date.now() * 0.001), 2 * Math.sin(Date.now() * 0.001), 0.1]);
     gl.uniform2fv(shProgram.iPoint, point);
     gl.uniform1f(shProgram.iAngle, document.getElementById('a').value);
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.identity());
+    gl.bindTexture(gl.TEXTURE_2D, textureForVideo);
+    if (video) {
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            video
+        );
+    }
+
+    surfaceForVideo.Draw();
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.bindTexture(gl.TEXTURE_2D, textureForSurface);
     let [frustumM, translationM] = stereoCamera.ApplyLeftFrustum();
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.multiply(frustumM, m4.multiply(translationM, matAccum1)));
     gl.colorMask(true, false, false, false);
@@ -148,6 +162,8 @@ function draw() {
     gl.colorMask(false, true, true, false);
     surface.Draw();
     gl.colorMask(true, true, true, true);
+
+
 }
 
 function repeatDraw() {
@@ -296,6 +312,11 @@ function initGL() {
     lilgui.add(stereoCamera, 'mFOV', 0.1, 1)
     lilgui.add(stereoCamera, 'mNearClippingDistance', 9, 11)
 
+    surfaceForVideo = new Model('Surface');
+    surfaceForVideo.BufferData([-1, -1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 1, 0]);
+    surfaceForVideo.LoadNormals([-1, -1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 1, 0]);
+    surfaceForVideo.LoadTextures([1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0]);
+
     surface = new Model('Surface');
     light = new Model('Surface');
     surface.BufferData(CreateSurfaceData());
@@ -369,13 +390,15 @@ function init() {
 
     spaceball = new TrackballRotator(canvas, draw, 0);
     repeatDraw();
-    LoadTexture()
+    LoadTexture();
+    buildVideo();
+    LoadTextureForVideo();
 }
 
 function LoadTexture() {
 
-    let texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    textureForSurface = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, textureForSurface);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
@@ -383,7 +406,7 @@ function LoadTexture() {
     image.crossOrigin = 'anonymus';
     image.src = "https://raw.githubusercontent.com/K1rishima/Visualization/cgw/texture.jpg";
     image.onload = () => {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.bindTexture(gl.TEXTURE_2D, textureForSurface);
         gl.texImage2D(
             gl.TEXTURE_2D,
             0,
@@ -395,4 +418,23 @@ function LoadTexture() {
         console.log("imageLoaded")
         draw()
     }
+}
+
+function LoadTextureForVideo() {
+    textureForVideo = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, textureForVideo);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+function buildVideo() {
+    video = document.createElement('video');
+    video.setAttribute('autoplay', true);
+    navigator.getUserMedia({ video: true, audio: false }, function (stream) {
+        video.srcObject = stream;
+    }, function (e) {
+        console.error('Rejected!', e);
+    });
 }
