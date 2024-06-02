@@ -151,6 +151,15 @@ function draw() {
 
     surfaceForVideo.Draw();
     gl.clear(gl.DEPTH_BUFFER_BIT);
+    let timeStamp = Date.now() * 0.001;
+    let audioPosition = [0.3 * Math.cos(timeStamp), 0, 0.3 * Math.sin(timeStamp)]
+    if (stereoHelper) {
+        console.log(audioPosition)
+        stereoHelper.setPosition(...audioPosition)
+    }
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.multiply(m4.identity(), m4.translation(...audioPosition)));
+    light.Draw();
+    gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.bindTexture(gl.TEXTURE_2D, textureForSurface);
     let [frustumM, translationM] = stereoCamera.ApplyLeftFrustum();
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.multiply(frustumM, m4.multiply(translationM, matAccum1)));
@@ -393,6 +402,7 @@ function init() {
     LoadTexture();
     buildVideo();
     LoadTextureForVideo();
+    setupListenersToElements()
 }
 
 function LoadTexture() {
@@ -437,4 +447,48 @@ function buildVideo() {
     }, function (e) {
         console.error('Rejected!', e);
     });
+}
+
+let filterOnOff;
+let audioElement;
+let sourcePointer
+let smuhovyiFilter;
+let stereoHelper;
+let audioContext;
+function setupListenersToElements() {
+    filterOnOff = document.getElementById('filterOnOff');
+    audioElement = document.getElementById('audioElement');
+
+    audioElement.addEventListener('play', () => {
+        if (!audioContext) {
+            audioContext = new AudioContext();
+            sourcePointer = audioContext.createMediaElementSource(audioElement);
+            stereoHelper = audioContext.createPanner();
+            smuhovyiFilter = audioContext.createBiquadFilter();
+
+            sourcePointer.connect(stereoHelper);
+            stereoHelper.connect(smuhovyiFilter);
+            smuhovyiFilter.connect(audioContext.destination);
+
+            smuhovyiFilter.type = 'bandpass';
+            smuhovyiFilter.frequency.value = 1000;
+            smuhovyiFilter.Q.value = 1;
+            audioContext.resume();
+        }
+    })
+    audioElement.addEventListener('pause', () => {
+        console.log('pause');
+        audioContext.resume();
+    })
+    filterOnOff.addEventListener('change', function () {
+        if (filterOnOff.checked) {
+            stereoHelper.disconnect();
+            stereoHelper.connect(smuhovyiFilter);
+            smuhovyiFilter.connect(audioContext.destination);
+        } else {
+            stereoHelper.disconnect();
+            stereoHelper.connect(audioContext.destination);
+        }
+    });
+    audioElement.play();
 }
